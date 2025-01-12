@@ -1,6 +1,18 @@
 import requests
 import datetime
 import time
+import sqlite3
+
+sqliteConnection = sqlite3.connect("steam.db") # Connect to database
+cursor = sqliteConnection.cursor() # Execute queries
+
+# Tables
+cursor.execute("""CREATE TABLE IF NOT EXISTS users (
+                    steam_id TEXT PRIMARY KEY,
+                    gamertag TEXT,
+                    profile_url TEXT,
+                    date_joined TEXT
+                  )""")
 
 # This function gets the player's info at the specified ID using the key, attempting to display the info if both parameters are valid
 def getPlayerInfo(API_key, steam_ID):
@@ -18,7 +30,6 @@ def getPlayerInfo(API_key, steam_ID):
     # Successful response...
     if(response_player_summaries.status_code == 200):
         data_player_summaries = response_player_summaries.json()
-        print(len(data_player_summaries["response"]["players"]))
         # Check if we found a profile with the steam ID
         if(len(data_player_summaries["response"]["players"]) > 0):
             gamertag = data_player_summaries["response"]["players"][0]["personaname"]
@@ -30,6 +41,8 @@ def getPlayerInfo(API_key, steam_ID):
             print("Profile URL: " + profile_URL)
             print("Date joined: " + str(date_joined))
             print("Last online: " + str(last_online))
+            cursor.execute("""INSERT OR REPLACE INTO users (steam_id, gamertag, profile_url, date_joined) VALUES (?, ?, ?, ?)""", (steam_ID, gamertag, profile_URL, date_joined))
+            sqliteConnection.commit()
         else:
             print("Hey, that Steam account doesn't exist!")
     else:
@@ -60,15 +73,26 @@ def getPlayerInfo(API_key, steam_ID):
         print("Error fetching player's games owned data!")
 def main():
     while(True):
-        API_key = input("Enter your Steam API key (\"exit\" to quit): ")
-        if API_key.lower() == "exit":
-            break
-        else:
+        choice = input("Enter 1 to view existing user, 2 to add a user, or 3 to exit: ")
+        if choice == "1":
+            cursor.execute("SELECT * FROM users")
+            for row in cursor.fetchall():
+                print("ID: " + str(row[0]))
+                print("Gamertag: " + str(row[1]))
+                print("Profile URL: " + str(row[2]))
+                print("Date joined: " + str(row[3]))
+        elif choice == "2":
+            API_key = input("Enter your Steam API key: ")
             steam_ID = input("Enter your Steam ID: ")
             getPlayerInfo(API_key, steam_ID)
             for _ in range(3):
                 print(".", end="", flush=True)
                 time.sleep(1)
             print("")
+        elif choice == "3":
+            sqliteConnection.close()
+            break
+        else:
+            print("Invalid choice.")
 
 main()
