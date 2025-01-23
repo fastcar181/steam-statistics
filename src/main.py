@@ -3,20 +3,32 @@ import datetime
 import sqlite3
 import streamlit as st
 
-sqliteConnection = sqlite3.connect("steam.db") # Connect to database
-cursor = sqliteConnection.cursor() # Execute queries
+def create_table():
+    with sqlite3.connect("steam.db") as connection:
+        cursor = connection.cursor() # Execute queries
+        # The steam ID is the primary key and is unique, meaning a person's profile will only be on the table once
+        cursor.execute("""CREATE TABLE IF NOT EXISTS users (
+                            steam_id TEXT PRIMARY KEY,
+                            gamertag TEXT,
+                            avatarmedium TEXT,
+                            profile_url TEXT,
+                            date_joined TEXT
+                        )""")
 
-# The steam ID is the primary key and is unique, meaning a person's profile will only be on the table once
-cursor.execute("""CREATE TABLE IF NOT EXISTS users (
-                    steam_id TEXT PRIMARY KEY,
-                    gamertag TEXT,
-                    avatarmedium TEXT,
-                    profile_url TEXT,
-                    date_joined TEXT
-                  )""")
+def insert_player_info(steam_ID, gamertag, avatarmedium, profile_url, date_joined):
+    with sqlite3.connect("steam.db") as connection:
+        cursor = connection.cursor()
+        cursor.execute("""INSERT OR REPLACE INTO users (steam_id, gamertag, avatarmedium, profile_url, date_joined) VALUES (?, ?, ?, ?, ?)""", (steam_ID, gamertag, avatarmedium, profile_url, date_joined))
+        connection.commit()
+
+def fetch_players():
+    with sqlite3.connect("steam.db") as connection:
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM users")
+        return cursor.fetchall()
 
 # This function gets the player's info at the specified ID using the key, attempting to display the info if both parameters are valid
-def getPlayerInfo(API_key, steam_ID):
+def get_player_info(API_key, steam_ID):
     games_images = []
     games_names = []
     games_playtimes = []
@@ -42,16 +54,16 @@ def getPlayerInfo(API_key, steam_ID):
             avatarmedium = data_player_summaries["response"]["players"][0]["avatarmedium"]
             # Convert from Epoch to date
             date_joined = datetime.datetime.utcfromtimestamp(data_player_summaries["response"]["players"][0]["timecreated"])
-            cursor.execute("""INSERT OR REPLACE INTO users (steam_id, gamertag, avatarmedium, profile_url, date_joined) VALUES (?, ?, ?, ?, ?)""", (steam_ID, gamertag, avatarmedium, profile_URL, date_joined))
-            sqliteConnection.commit()
             st.image(avatarmedium)
             st.write(gamertag)
             st.write(profile_URL)
             st.write("Date joined: " + str(date_joined))
+            insert_player_info(steam_ID, gamertag, avatarmedium, profile_URL, date_joined)
         else:
-            print("Hey, that Steam account doesn't exist!")
+            st.error("Hey, that Steam account doesn't exist!")
+            return
     else:
-        print("Error fetching player's summaries data!")
+        st.error("Error fetching player's summaries data!")
     # Successful response...
     if(response_player_games_owned.status_code == 200):
         data_player_games_owned = response_player_games_owned.json()
@@ -75,10 +87,11 @@ def getPlayerInfo(API_key, steam_ID):
                 games_names.append(name)
                 games_playtimes.append(playtime)
         else:
-            print("Hey, that Steam account doesn't exist!")
+            st.error("Hey, that Steam account doesn't exist!")
+            return
         st.write("Most played game: " + data_player_games_owned["response"]["games"][index]["name"])
     else:
-        print("Error fetching player's games owned data!")
+        st.error("Error fetching player's games owned data!")
     displayGameInfo(games_images, games_names, games_playtimes, games_owned)
 
 def displayGameInfo(games_images, games_names, games_playtimes, games_owned):
@@ -91,25 +104,26 @@ def displayGameInfo(games_images, games_names, games_playtimes, games_owned):
 
 def main():
     st.title("Steam App")
-    choice = st.selectbox("Select: ", ("View existing users", "Add a user", "Exit"))
+    create_table()
+    choice = st.selectbox("Select: ", ("View existing users", "Add a user"))
     if choice == "View existing users":
-        cursor.execute("SELECT * FROM users")
-        for row in cursor.fetchall():
-            st.write("ID: " + str(row[0]))
-            st.write("Gamertag: " + str(row[1]))
-            st.image(row[2])
-            st.write("Profile URL: " + str(row[3]))
-            st.write("Date joined: " + str(row[4]))
+        players = fetch_players()
+        if players:
+            for row in players:
+                st.write("ID: " + str(row[0]))
+                st.write("Gamertag: " + str(row[1]))
+                st.image(row[2])
+                st.write("Profile URL: " + str(row[3]))
+                st.write("Date joined: " + str(row[4]))
+        else:
+            st.info("No users found in database.")
     elif choice == "Add a user":
         API_key = st.text_input("Enter your Steam API key: ")
         steam_ID = st.text_input("Enter your Steam ID: ")
         if st.button("Search"):
             if API_key and steam_ID:
-                getPlayerInfo(API_key, steam_ID)
+                get_player_info(API_key, steam_ID)
             else:
-                st.warning("you're on thin ice pal!")
-    elif choice == "Exit":
-        st.write("bye!")
-        sqliteConnection.close()
+                st.warning("You need to enter an API key AND a Steam ID!")
 
 main()
