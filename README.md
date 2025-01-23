@@ -12,4 +12,4 @@ You will need a **Steam API key** and the **Steam ID** of the profiles you wish 
 Make sure to do `pip install requests` and `pip install streamlit` before running!
 
 ## Usage
-In your Windows terminal, move to the directory with the application and then type `python -m streamlit run main.py` to run it in your web browser.
+In your Windows terminal, move to the `src` folder with `main.py` and then type `python -m streamlit run main.py` to run it in your web browser.
