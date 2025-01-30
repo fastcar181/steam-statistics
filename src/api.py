@@ -1,6 +1,5 @@
 import requests
 import datetime
-import sqlite3
 import streamlit as st
 import json
 from database import insert_game_info, insert_player_info, fetch_games
